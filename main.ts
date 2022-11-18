@@ -10,7 +10,9 @@ interface User {
 const TICK = 50;
 
 const index = await Deno.readFile("index.html");
-const pointerCanvas = await bundle("pointer-canvas.ts");
+const pointerCanvas = await bundle("pointer-canvas.ts", {
+  cacheRoot: "/dev/null",
+});
 const users = new Map<WebSocket, User>();
 
 setInterval(broadcastUpdates, TICK);
