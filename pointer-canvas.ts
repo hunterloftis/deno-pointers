@@ -7,6 +7,10 @@ interface User {
 const MAX_AGE = 30000;  // un-updated pointers are culled after 30s
 const INTERPOLATION = 0.4;
 const INTERPOLATE_LIMIT = 0.4;
+const BG_COLOR = '#222';
+const NODE_RGB = '255, 0, 0';
+const USER_RGB = '255, 255, 255';
+const DOT_RADIUS = 5;
 
 export class PointerCanvas extends HTMLElement {
   private canvas = document.createElement('canvas');
@@ -21,6 +25,7 @@ export class PointerCanvas extends HTMLElement {
     super();
     this.style.display = 'block';
     this.style.cursor = 'crosshair';
+    this.style.touchAction = 'none';
     this.canvas.style.position = 'absolute';
     this.canvas.style.inset = '0';
     this.addEventListener('pointermove', this.onPointermove);
@@ -69,7 +74,8 @@ export class PointerCanvas extends HTMLElement {
     if (!this.isConnected) return;
 
     const now = performance.now();
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.fillStyle = BG_COLOR;
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.users.forEach((user, id) => {
       const age = now - user.updatedAt;
       if (age > MAX_AGE) {
@@ -86,14 +92,17 @@ export class PointerCanvas extends HTMLElement {
 
       const x = user.renderedPt[0] * this.canvas.width;
       const y = user.renderedPt[1] * this.canvas.height;
-      const rgb = id.startsWith('node:') ? '0, 0, 0' : '255, 0, 0';
+      const rgb = id.startsWith('node:') ? NODE_RGB : USER_RGB;
       this.ctx.fillStyle = `rgba(${rgb}, ${alpha})`;
-      this.ctx.fillRect(x - 4, y - 4, 8, 8);
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, DOT_RADIUS, 0, Math.PI * 2);
+      this.ctx.fill();
     });
     requestAnimationFrame(this.draw);
   }
 
   private onPointermove = (e: PointerEvent) => {
+    e.preventDefault();
     const x = e.clientX / this.clientWidth;
     const y = e.clientY / this.clientHeight;
     this.socket?.send(JSON.stringify([x, y]));
