@@ -14,16 +14,21 @@ const index = await Deno.readFile("index.html");
 const pointerCanvas = await bundle("pointer-canvas.ts", {
   cacheRoot: "/dev/null",
 });
-const users = new Map<WebSocket, User>();
+
 const node: User = {
   id: `node:${crypto.randomUUID()}`,
-  pt: [ Math.random(), Math.random() ],
-}
+  pt: [Math.random(), Math.random()],
+};
+const users = new Map<WebSocket, User>();
+const remoteUsers = new Map<string, User>();
+
 const angle = Math.random() * Math.PI * 2;
 const dx = Math.cos(angle) * NODE_SPEED;
 const dy = Math.sin(angle) * NODE_SPEED;
+const broadcast = new BroadcastChannel("users");
 
-setInterval(broadcastUpdates, TICK);
+broadcast.addEventListener("message", onBroadcastMessage);
+setInterval(sendUpdates, TICK);
 serve(handler);
 
 function handler(req: Request): Response {
@@ -60,14 +65,32 @@ function socketHandler(req: Request): Response {
   return response;
 }
 
-function broadcastUpdates() {
-  const dirtyUsers = Array.from(users.values()).filter(user => user.dirty);
-  const update = [ node, ...dirtyUsers ];
-  const data = JSON.stringify(update.map(({ id, pt }) => ({ id, pt })));
+function onBroadcastMessage({ data }: MessageEvent) {
+  const updatedRemoteUsers = JSON.parse(data);
+  updatedRemoteUsers.forEach(({ id, pt }: { id: string, pt: number[] }) => {
+    remoteUsers.set(id, { id, pt, dirty: true });
+  });
+}
 
+function sendUpdates() {
+  const dirtyUsers = Array.from(users.values())
+    .filter((user) => user.dirty);
+  const dirtyRemoteUsers = Array.from(remoteUsers.values())
+    .filter((user) => user.dirty);
+  
+  const update = [node, ...dirtyUsers, ...dirtyRemoteUsers];
+  const data = JSON.stringify(update.map(({ id, pt }) => ({ id, pt })));
   for (const [socket, user] of users.entries()) {
     user.dirty = false;
     socket.send(data);
+  }
+
+  // TODO: skip JSON for postMessage stuff
+  const peerUpdate = [node, ...dirtyUsers];
+  const peerData = JSON.stringify(peerUpdate.map(({ id, pt }) => ({ id, pt })));
+  broadcast.postMessage(peerData);
+  for (const user of remoteUsers.values()) {
+    user.dirty = false;
   }
 
   node.pt[0] = (1 + node.pt[0] + dx) % 1;
