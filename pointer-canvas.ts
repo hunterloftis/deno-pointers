@@ -10,7 +10,9 @@ const INTERPOLATE_LIMIT = 0.4;
 const BG_COLOR = '#222';
 const NODE_RGB = '255, 0, 0';
 const USER_RGB = '255, 255, 255';
-const DOT_RADIUS = 5;
+const DOT_RADIUS = 8;
+const LINE_WIDTH = 2;
+const MAX_DIST = 0.3;
 
 export class PointerCanvas extends HTMLElement {
   private canvas = document.createElement('canvas');
@@ -76,20 +78,45 @@ export class PointerCanvas extends HTMLElement {
     const now = performance.now();
     this.ctx.fillStyle = BG_COLOR;
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // move users & interpolate
     this.users.forEach((user, id) => {
       const age = now - user.updatedAt;
       if (age > MAX_AGE) {
         this.users.delete(id);
         return;
       }
-      const alpha = 1 - Math.max(0, Math.min(1, age / MAX_AGE));
       const dx = user.pt[0] - user.renderedPt[0];
       const dy = user.pt[1] - user.renderedPt[1];
       const teleported = Math.abs(dx) > INTERPOLATE_LIMIT || Math.abs(dy) > INTERPOLATE_LIMIT;
       const interp = teleported ? 1 : INTERPOLATION;
       user.renderedPt[0] += dx * interp;
       user.renderedPt[1] += dy * interp;
+    });
+    // draw lines
+    this.ctx.lineWidth = LINE_WIDTH;
+    this.users.forEach((userA, idA) => {
+      this.users.forEach((userB, idB) => {
+        const dx = userA.pt[0] - userB.pt[0];
+        const dy = userA.pt[1] - userB.pt[1];
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > MAX_DIST) return;
 
+        const alpha = 1 - dist / MAX_DIST;
+        const xA = userA.renderedPt[0] * this.canvas.width;
+        const yA = userA.renderedPt[1] * this.canvas.height;
+        const xB = userB.renderedPt[0] * this.canvas.width;
+        const yB = userB.renderedPt[1] * this.canvas.height;
+        this.ctx.strokeStyle = `rgba(${USER_RGB}, ${alpha})`;
+        this.ctx.beginPath();
+        this.ctx.moveTo(xA, yA);
+        this.ctx.lineTo(xB, yB);
+        this.ctx.stroke();
+      });
+    });
+    // draw dots
+    this.users.forEach((user, id) => {
+      const age = now - user.updatedAt;
+      const alpha = 1 - age / MAX_AGE;
       const x = user.renderedPt[0] * this.canvas.width;
       const y = user.renderedPt[1] * this.canvas.height;
       const rgb = id.startsWith('node:') ? NODE_RGB : USER_RGB;
