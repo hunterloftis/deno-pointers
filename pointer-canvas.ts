@@ -5,6 +5,8 @@ interface User {
 }
 
 const MAX_AGE = 30000;  // un-updated pointers are culled after 30s
+const INTERPOLATION = 0.4;
+const INTERPOLATE_LIMIT = 0.4;
 
 export class PointerCanvas extends HTMLElement {
   private canvas = document.createElement('canvas');
@@ -75,11 +77,17 @@ export class PointerCanvas extends HTMLElement {
         return;
       }
       const alpha = 1 - Math.max(0, Math.min(1, age / MAX_AGE));
+      const dx = user.pt[0] - user.renderedPt[0];
+      const dy = user.pt[1] - user.renderedPt[1];
+      const teleported = Math.abs(dx) > INTERPOLATE_LIMIT || Math.abs(dy) > INTERPOLATE_LIMIT;
+      const interp = teleported ? 1 : INTERPOLATION;
+      user.renderedPt[0] += dx * interp;
+      user.renderedPt[1] += dy * interp;
+
       const x = user.renderedPt[0] * this.canvas.width;
       const y = user.renderedPt[1] * this.canvas.height;
-      user.renderedPt[0] += (user.pt[0] - user.renderedPt[0]) * 0.5;
-      user.renderedPt[1] += (user.pt[1] - user.renderedPt[1]) * 0.5;
-      this.ctx.fillStyle = `rgba(255, 0, 0, ${alpha})`;
+      const rgb = id.startsWith('node:') ? '0, 0, 0' : '255, 0, 0';
+      this.ctx.fillStyle = `rgba(${rgb}, ${alpha})`;
       this.ctx.fillRect(x - 4, y - 4, 8, 8);
     });
     requestAnimationFrame(this.draw);
